@@ -1,6 +1,6 @@
 pub mod server;
 pub mod ws;
 
-fn run() {
-        
+pub async fn run() {
+    ws::start_ws().await;    
 }

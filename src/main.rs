@@ -39,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         }
     }
     */
+    mc_docker::run().await;
 
     Ok(())
 }

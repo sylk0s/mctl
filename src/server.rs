@@ -14,15 +14,6 @@ pub struct Server {
     pub id: String,
 }
 
-/*
- * Server interacts with the docker container over 3 primary channels
- * 1) RCON for sending commands to the server
- * 2) Docker API for managing the container
- * 3) Either Docker API or a child process for reading the output
- *
- * RCON requires
-*/
-
 impl Server {
     pub async fn send_command(&self, cmd: Vec<&str>) -> Result<String, String> {
         #[cfg(unix)]
@@ -80,6 +71,7 @@ impl Server {
        #[cfg(unix)]
        let docker = Docker::connect_with_socket_defaults().unwrap();
 
+       // fix to give only new logs
        let options = Some(LogsOptions::<String>{
             stdout: true,
             //since: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64,

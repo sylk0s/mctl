@@ -4,22 +4,16 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::{
-    ws::{Message, WebSocket}, 
+    ws::{Message, WebSocket},
+    http::StatusCode,
     Reply, Filter, Rejection};
 use futures::{FutureExt, StreamExt};
-use serde_json::from_str;
-use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 pub struct WsClient {
     pub user_id: usize,
     pub topics: Vec<String>,
     pub sender: Option<mpsc::UnboundedSender<std::result::Result<Message, warp::Error>>>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct TopicsRequest {
-    topics: Vec<String>,
 }
 
 type Result<T> = std::result::Result<T, Rejection>;
@@ -30,6 +24,9 @@ type Clients = Arc<RwLock<HashMap<String, WsClient>>>;
 pub async fn start_ws() {
     let clients: Clients = Arc::new(RwLock::new(HashMap::new()));
 
+    let ping_route = warp::path!("ping")
+        .and_then(ping_handler);
+
     // Add regular https stuff that doesn't require WS connection?
     let ws_route = warp::path("ws")
         .and(warp::ws())
@@ -39,10 +36,11 @@ pub async fn start_ws() {
         .and_then(ws_handler);
 
     let routes = ws_route
+        .or(ping_route)
         .with(warp::cors().allow_any_origin());
 
     // fix hardcoded stuff with config file later
-    warp::serve(routes).run(([127, 0, 0, 1], 8000)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], 7955)).await;
 }
 
 // clones the clients into the arg for the handler?
@@ -60,6 +58,10 @@ async fn ws_handler(ws: warp::ws::Ws, /*id: String,*/ clients: Clients) -> Resul
         None => Err(warp::reject::not_found()),
     }
     */
+}
+
+async fn ping_handler() -> Result<impl Reply> {
+    Ok(StatusCode::OK) 
 }
 
 pub async fn client_connection(ws: WebSocket, /*id: String,*/ clients: Clients/*, mut client: Client*/) {
@@ -115,21 +117,5 @@ async fn client_msg(id: &str, msg: Message, clients: &Clients) {
         Err(_) => return,
     };
 
-    if message == "ping" || message == "ping\n" {
-        return;
-    }
-
-    let topics_req: TopicsRequest = match from_str(&message) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("error while parsing message to topics request: {}", e);
-            return;
-        }
-    };
-
-    let mut locked = clients.write().await;
-    if let Some(v) = locked.get_mut(id) {
-        v.topics = topics_req.topics;
-    }
+    // do *something* with the message recieved
 }
-
