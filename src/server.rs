@@ -1,5 +1,11 @@
-use bollard::Docker;
-use bollard::exec::CreateExecOptions;
+use bollard::{
+    Docker,
+    exec::CreateExecOptions,
+    container::{LogsOptions, LogOutput},
+    errors::Error };
+use futures::Stream;
+use std::time::SystemTime;
+use serde::Serialize;
 
 pub struct Server {
     pub name: String,
@@ -70,7 +76,17 @@ impl Server {
         unimplemented!();
     }
 
-   pub fn output(&self) {
-        unimplemented!();
+   pub fn output(&self) -> impl Stream<Item = Result<LogOutput, Error>> {
+       #[cfg(unix)]
+       let docker = Docker::connect_with_socket_defaults().unwrap();
+
+       let options = Some(LogsOptions::<String>{
+            stdout: true,
+            //since: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64,
+            follow: true,
+            ..Default::default()
+        });
+
+        docker.logs(&self.id, options)
     }
 }
