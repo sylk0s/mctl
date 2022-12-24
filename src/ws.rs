@@ -60,6 +60,7 @@ async fn ws_handler(ws: warp::ws::Ws, /*id: String,*/ clients: Clients) -> Resul
     */
 }
 
+// Should probably reply with pong
 async fn ping_handler() -> Result<impl Reply> {
     Ok(StatusCode::OK) 
 }
@@ -117,5 +118,15 @@ async fn client_msg(id: &str, msg: Message, clients: &Clients) {
         Err(_) => return,
     };
 
-    // do *something* with the message recieved
+    if let Some(client) = clients.read().await.get(id).cloned() {
+        if message == "aaa" {
+            client.sender.unwrap().send(Ok(Message::text("a"))).expect("Message failed to send"); 
+        } else if message == "bbb" {
+            client.sender.unwrap().send(Ok(Message::text("b"))).expect("Message failed to send"); 
+        } else {
+            client.sender.unwrap().send(Ok(Message::text("c"))).expect("Message failed to send"); 
+        }
+    } else {
+        println!("Client could not be found");
+    }
 }
