@@ -4,8 +4,6 @@ use bollard::{
     container::{LogsOptions, LogOutput},
     errors::Error };
 use futures::Stream;
-use std::time::SystemTime;
-use serde::Serialize;
 
 pub struct Server {
     pub name: String,

@@ -24,8 +24,32 @@ type Clients = Arc<RwLock<HashMap<String, WsClient>>>;
 pub async fn start_ws() {
     let clients: Clients = Arc::new(RwLock::new(HashMap::new()));
 
-    let ping_route = warp::path!("ping")
+    // Ping the server
+    let ping_route = warp::path!("beep")
         .and_then(ping_handler);
+
+    // Execute a command on the server
+    //let exec_route = warp::path!("exec")
+
+    // Start a server
+    //let start_route = warp::path!("start")
+
+    // Stop a server
+    //let stop_route = warp::path!("stop")
+
+    // Create a new server
+    //let new_route = warp::path("new")
+
+    // Load a world file as a server
+    //let load_route = warp::path("load")
+
+    // Create a backup of a server
+    //let backup_route = warp::path("backup")
+    // /backup/{id}/{_, /region/{x-y}}
+
+    // Get the status of mc-docker
+    //let status_route = warp::path("status") 
+    // /status/{id}/{_, /{stat}}
 
     // Add regular https stuff that doesn't require WS connection?
     let ws_route = warp::path("ws")
@@ -74,7 +98,7 @@ pub async fn client_connection(ws: WebSocket, /*id: String,*/ clients: Clients/*
     let client_rcv = UnboundedReceiverStream::new(client_rcv);
     tokio::task::spawn(client_rcv.forward(client_ws_sender).map(|result| {
         if let Err(e) = result {
-            eprintln!("error sending websocket msg: {}", e);
+                eprintln!("error sending websocket msg: {}", e);
         }
     }));
 
