@@ -5,7 +5,7 @@ use bollard::{
     errors::Error };
 use futures::Stream;
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
+use chrono::Utc;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
@@ -71,10 +71,9 @@ impl Server {
        #[cfg(unix)]
        let docker = Docker::connect_with_socket_defaults().unwrap();
 
-       // fix to give only new logs
        let options = Some(LogsOptions::<String>{
             stdout: true,
-            //since: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as i64,
+            since: Utc::now().timestamp(),
             follow: true,
             ..Default::default()
         });
