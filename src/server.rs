@@ -4,7 +4,9 @@ use bollard::{
     container::{LogsOptions, LogOutput},
     errors::Error };
 use futures::Stream;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
     pub name: String,
     pub path: String,
@@ -13,12 +15,11 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn send_command(&self, cmd: Vec<&str>) -> Result<String, String> {
+    pub async fn send_command(&self, cmd: Vec<String>) -> Result<String, String> {
         #[cfg(unix)]
         let docker = Docker::connect_with_socket_defaults().unwrap();
 
-        let mut full_cmd = vec!["rcon-cli"];
-            full_cmd.extend(cmd);
+        let full_cmd = cmd.iter().fold(vec!["rcon-cli"], |mut acc, x| { acc.push(x.as_str()); acc });
         let exec = docker
         .create_exec(
             &self.id,

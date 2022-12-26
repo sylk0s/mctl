@@ -1,5 +1,3 @@
-use mc_docker::server::Server;
-
 /*
  *
  * mc-docker:
@@ -22,12 +20,6 @@ use mc_docker::server::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
-    let server = Server {
-        name: "aaa".to_string(),
-        path: "bbb".to_string(),
-        rcon: "ccc".to_string(),
-        id: "6939b3fa9ce3".to_string(),
-    };
 
     //server.send_command(vec!["tellraw", "@a", "{\"text\":\"boop\"}"]).await.expect("It broken");
 
@@ -37,13 +29,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
     let mut logs = server.output();
     while let Some(msg) = logs.next().await {
         if let Ok(m) = msg {
-            println!("Server MSG: {}", m);
+            println!("Server msg: {}", m);
         }
     }
     */
-    //mc_docker::run().await;
 
-    mc_docker::create::ComposeYaml::test();
+    mc_docker::run().await;
+
+    //mc_docker::create::ComposeYaml::test();
 
     Ok(())
 }
