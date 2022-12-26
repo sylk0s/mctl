@@ -232,8 +232,11 @@ async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Getting output from {id}");
     Ok(warp::reply::Response::new(
             hyper::Body::wrap_stream(
-                servers.write().await.get(&id).unwrap().output()
-                )))
+                servers.write().await.get(&id).unwrap().output().map(|item| 
+                                                                     match item {
+                                                                        Ok(out) => Ok(out.into_bytes()),
+                                                                        Err(e) => Err(e),
+                                                                     }))))
 }
 
 // Weird trait thing I was trying to do. May refactor the code later to include something like this
