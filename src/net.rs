@@ -232,17 +232,8 @@ async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Getting output from {id}");
     Ok(warp::reply::Response::new(
             hyper::Body::wrap_stream(
-                servers.write().await.get(&id).unwrap().output().filter(|e|
-                            future::ready(if let LogOutput::StdOut { message: _ } = e.as_ref().unwrap() {
-                                    true
-                                } else {
-                                    false
-                                })).map(|e|
-                                if let LogOutput::StdOut { message: msg } = e.unwrap() {
-                                    Ok(msg)
-                                } else {
-                                    Err("borkn")
-                                }))))
+                servers.write().await.get(&id).unwrap().output()
+                )))
 }
 
 // Weird trait thing I was trying to do. May refactor the code later to include something like this
