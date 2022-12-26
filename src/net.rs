@@ -9,7 +9,8 @@ use warp::{
     Reply, Filter, Rejection};
 use futures::{
     {FutureExt, StreamExt}, 
-    future};
+    future,
+    Stream};
 use crate::server::Server;
 use serde::{Serialize, Deserialize};
 use bollard::container::LogOutput;
@@ -38,9 +39,13 @@ pub async fn start_ws() {
         id: "249148a1229c".to_string(),
     };
 
-    {
-        servers.write().await.insert(server.name.clone(), server);
+    servers.write().await.insert(server.name.clone(), server);
+
+    /*
+    while let Some(msg) = output_handler("TEST", servers.clone()).await.next().await {
+        println!("{:?}", msg)
     }
+    */
 
     // Ping the server
     let ping_route = warp::path!("beep")
@@ -65,12 +70,10 @@ pub async fn start_ws() {
         .and(with(servers.clone()))
         .and_then(stop_handler);
 
-    /*
     let output_route = warp::path!("output" / String)
         .and(warp::get())
         .and(with(servers.clone()))
         .and_then(output_handler);
-        */
 
     // Create a new server
     //let new_route = warp::path("new")
@@ -100,6 +103,7 @@ pub async fn start_ws() {
         .or(start_route)
         .or(exec_route)
         .or(stop_route)
+        .or(output_route)
         .with(warp::cors().allow_any_origin());
 
     println!("Everything loaded in, starting Web Server now...");
@@ -222,23 +226,24 @@ async fn exec_handler(id: String, body: Exec, servers: Servers) -> Result<impl R
     Ok(StatusCode::OK) 
 }
 
-// Trying to implement a stream over http instead of having a websocket :3
-/*
+// Trying to implement a stream over http instead of having a websocket
+// This is incredibly cursed code that parses this stupid LogOutput struct into a bye stream
 async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
-    println!("Getting putput from {id}");
-    Ok(warp::reply::Response::new(hyper::Body::wrap_stream
-                                  //::<StreamExt<Item = Result<LogOutput, bollard::errors::Error>>, String, bollard::errors::Error>
-                                  (servers.write().await.get(&id).unwrap().output()
-                                    .filter_map(|e|
-                                                future::ready(if let LogOutput::StdOut { message: msg } = e.unwrap() {
-                                                    Some(Ok(msg))
-                                                } else {
-                                                    None
-                                                }))
-                                                )))
-        
+    println!("Getting output from {id}");
+    Ok(warp::reply::Response::new(
+            hyper::Body::wrap_stream(
+                servers.write().await.get(&id).unwrap().output().filter(|e|
+                            future::ready(if let LogOutput::StdOut { message: _ } = e.as_ref().unwrap() {
+                                    true
+                                } else {
+                                    false
+                                })).map(|e|
+                                if let LogOutput::StdOut { message: msg } = e.unwrap() {
+                                    Ok(msg)
+                                } else {
+                                    Err("borkn")
+                                }))))
 }
-*/
 
 // Weird trait thing I was trying to do. May refactor the code later to include something like this
 /*
