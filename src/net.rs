@@ -8,6 +8,7 @@ use warp::{
 use futures::StreamExt;
 use crate::server::Server;
 use serde::{Serialize, Deserialize};
+use crate::status::Status;
 
 type Result<T> = std::result::Result<T, Rejection>;
 type Servers = Arc<RwLock<HashMap<String, Server>>>;
@@ -63,7 +64,10 @@ pub async fn start_ws() {
     // /backup/{id}/{_, /region/{x-y}}
 
     // Get the status of mc-docker
-    //let status_route = warp::path("status") 
+    let status_route = warp::path!("status" / String)
+        .and(warp::get())
+        .and(with(servers.clone()))
+        .and_then(status_handler);
     // /status/{id}/{_, /{stat}}
 
     let routes = ping_route
@@ -71,6 +75,7 @@ pub async fn start_ws() {
         .or(exec_route)
         .or(stop_route)
         .or(output_route)
+        .or(status_route)
         .with(warp::cors().allow_any_origin());
 
     println!("Everything loaded in, starting Web Server now...");
@@ -122,4 +127,10 @@ async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
                                                                         Ok(out) => Ok(out.into_bytes()),
                                                                         Err(e) => Err(e),
                                                                      }))))
+}
+
+async fn status_handler(_id: String, _servers: Servers) -> Result<impl Reply> {
+    println!("Attempting to get status");
+    Status::request("localhost:25565".to_string()).expect("It brokn");
+    Ok(StatusCode::OK)
 }
