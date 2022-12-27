@@ -168,6 +168,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "craftping"
+version = "0.3.1"
+source = "git+https://github.com/kiwiyou/craftping#9e3eeb7da0f36b1d2eed34d2ba1a3ad72db089de"
+dependencies = [
+ "base64",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "crypto-common"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -636,6 +646,7 @@ dependencies = [
  "async-trait",
  "bollard",
  "chrono",
+ "craftping",
  "futures",
  "hyper",
  "serde",

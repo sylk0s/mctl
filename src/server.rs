@@ -13,6 +13,7 @@ pub struct Server {
     pub path: String,
     pub rcon: String,
     pub id: String,
+    pub port: u16,
 }
 
 impl Server {

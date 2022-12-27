@@ -3,6 +3,7 @@ use std::{
     io::{prelude::*, BufReader},
     net::TcpStream};
 
+// TODO: Maybe someday write my own code for the Minecraft Server Ping protocol
 
 /*
 {
@@ -29,6 +30,7 @@ use std::{
 }
  */
 
+/*
 #[derive(Deserialize, Debug)]
 pub struct Status {
     version: Version,
@@ -60,21 +62,27 @@ struct Motd {
     text: String
 }
 
+
 impl Status {
+    /*
     pub fn request(ip: String) -> Result<Status, String> {
         if let Ok(mut stream) = TcpStream::connect(ip.clone()) {
             println!("Connected to the server");
            
-            let initial_msg = format!("\\x00\\x00{ip}\\x01");
-            let status_req = r"\x00";
+            let initial_msg = format!("\x00\x00{ip}\x01");
+            let status_req = "\x00";
 
+            println!("Sending: {}", initial_msg);
             stream.write_all(initial_msg.as_bytes()).unwrap();
+            stream.flush().unwrap();
+            println!("Sending: {}", status_req);
             stream.write_all(status_req.as_bytes()).unwrap();
+            stream.flush().unwrap();
 
             let buf_reader = BufReader::new(&mut stream);
             let status_request: Vec<_> = buf_reader
                 .lines()
-                .map(|result| result.unwrap())
+                .map(|result| { println!("{:?}", result); result.unwrap()})
                 .take_while(|line| !line.is_empty())
                 .collect();
 
@@ -86,6 +94,7 @@ impl Status {
         }
         Err("Failed to connect to the server".to_string())
     }
+    */
 
     fn from(s: String) -> Status {
         unimplemented!(); 
@@ -95,3 +104,4 @@ impl Status {
 
     }
 }
+*/

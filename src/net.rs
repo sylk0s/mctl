@@ -4,11 +4,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use warp::{
     http::StatusCode,
+    reply::json,
     Reply, Filter, Rejection};
 use futures::StreamExt;
 use crate::server::Server;
 use serde::{Serialize, Deserialize};
-use crate::status::Status;
+use craftping::sync::ping;
+use std::net::TcpStream;
 
 type Result<T> = std::result::Result<T, Rejection>;
 type Servers = Arc<RwLock<HashMap<String, Server>>>;
@@ -21,9 +23,12 @@ pub async fn start_ws() {
         path: "bbb".to_string(),
         rcon: "ccc".to_string(),
         id: "249148a1229c".to_string(),
+        port: 25565
     };
 
     servers.write().await.insert(server.name.clone(), server);
+
+    status_handler("TEST".to_string(), servers.clone()).await.expect("aaa");
 
     // Ping the server
     let ping_route = warp::path!("beep")
@@ -129,8 +134,13 @@ async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
                                                                      }))))
 }
 
-async fn status_handler(_id: String, _servers: Servers) -> Result<impl Reply> {
+async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Attempting to get status");
-    Status::request("localhost:25565".to_string()).expect("It brokn");
-    Ok(StatusCode::OK)
+    let hostname = "localhost";
+    let port = servers.write().await.get(&id).unwrap().port.clone();
+    let mut stream = TcpStream::connect((hostname, port)).unwrap();
+    let pong = ping(&mut stream, hostname, port).expect("Cannot ping server");
+    println!("{:?}",pong);
+    // some issue with the actual value that's being returned
+    Ok(json(&pong))
 }
