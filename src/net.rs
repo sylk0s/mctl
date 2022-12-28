@@ -140,7 +140,5 @@ async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
     let port = servers.write().await.get(&id).unwrap().port.clone();
     let mut stream = TcpStream::connect((hostname, port)).unwrap();
     let pong = ping(&mut stream, hostname, port).expect("Cannot ping server");
-    println!("{:?}",pong);
-    // some issue with the actual value that's being returned
     Ok(json(&pong))
 }
