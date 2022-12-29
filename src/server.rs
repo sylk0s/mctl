@@ -9,6 +9,7 @@ use chrono::Utc;
 use std::process::{Command, Stdio};
 use std::path::Path;
 use std::fs;
+use std::io::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
@@ -19,7 +20,7 @@ pub struct Server {
 }
 
 const PATH: &str = "/home/sylkos/servers";
-const COMPOSE: &str = "/home/sylkos/docker-compose.yml";
+const COMPOSE: &str = "/home/sylkos/servers/docker-compose.yml";
 
 impl Server {
     pub fn new(name: String, path: Option<String>, port_arg: Option<u16>, ports: Option<Vec<u16>>) -> Server {
@@ -28,10 +29,13 @@ impl Server {
                     } else {
                         format!("{PATH}/{}", name)
                     };
+
+        println!("Path: {path}");
         
         let path_obj = Path::new(&path);
 
         if !path_obj.exists() {
+            println!("No path found, making a new path");
             std::fs::create_dir_all(path.clone()).expect("Error creating a new directory.");
         }
 
@@ -41,9 +45,12 @@ impl Server {
         let compose_str = format!("{path}/docker-compose.yml"); 
         let compose = Path::new(&compose_str);
 
+        println!("Compose Path: {compose_str}");
+
         if !compose.exists() {
+            println!("Compose file doesn't exist at path");
             fs::File::create(&compose_str).expect("Error creating docker compose");
-            std::fs::copy(COMPOSE, compose_str.clone()).expect("Error copying default contents of docker compose"); 
+            fs::copy(COMPOSE, compose_str.clone()).expect("Error copying default contents of docker compose"); 
         }
 
         let ports = if let Some(p) = ports {
@@ -52,22 +59,18 @@ impl Server {
             Vec::new()
         };
 
-        let compose_file = fs::read_to_string(compose_str).unwrap();
+        println!("Reading compose file to string");
+        let compose_file = fs::read_to_string(compose_str.clone()).unwrap();
         let mut compose: Compose = serde_yaml::from_str(&compose_file).unwrap();
 
         let port_from_file = compose.services.mc.ports.get(0).unwrap().split(":").next().unwrap().parse::<u16>().unwrap();
-
+        println!("Port from file is: {port_from_file}");
         let port = if let Some(p) = port_arg { 
-            // Check to confirm that the port doesn't already overlap with any other ports
-            if ports.iter().any(|e| e == &p) {
-                println!("Warning, server is already running on this port!"); 
-            }
             p 
         } else { 
             // Find the next available port above 31000
-            // TODO update for config
             if port_from_file == 25565 {
-                ports.iter().fold(31000, |a, b| {
+                ports.iter().fold(31000-1, |a, b| {
                     if a+1 == *b { *b } else {
                         a  
                     }
@@ -77,16 +80,34 @@ impl Server {
             }
         };
 
+        println!("Port: {port}");
+
+        compose.services.mc.ports = vec![format!("{port}:25565")];
+        
+        println!("Writing updated compose to compose file");
+        println!("Compose path: {compose_str}");
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .append(false)
+            .open(compose_str)
+            .unwrap();
+        file.write(serde_yaml::to_string(&compose).expect("tostr").as_bytes()).expect("error writing");
+
+        if ports.iter().any(|e| e == &port) {
+            println!("Warning, server is already registered on this port!"); 
+        }
+
         let output = Command::new("docker")
             .arg("compose")
             .arg("up")
             .arg("-d")
-            .stdin(Stdio::piped())
-            .output().unwrap();
+            .current_dir(&path)
+            .output().unwrap().stderr;
 
-        println!("{:?}", output);
-        // parse output into ID
-        let id = "".to_string();
+        // btw this doesnt work if the container is already running, add a handler for that?
+        let id = std::str::from_utf8(&output).unwrap().split(" ").skip_while(|e| !e.starts_with("Creating\nContainer")).skip(1).next().unwrap().to_string();
+        println!("Id: {:?}", id);
 
         // add to Servers
         Server {
@@ -96,6 +117,7 @@ impl Server {
             port,
         }
     }
+
     pub async fn send_command(&self, cmd: Vec<String>) -> Result<String, String> {
         #[cfg(unix)]
         let docker = Docker::connect_with_socket_defaults().unwrap();
@@ -163,9 +185,9 @@ impl Server {
 }
 
 // Sketch thing for yaml
-
 #[derive(Serialize, Deserialize, Debug)]
 struct Compose {
+    version: String,
     services: Services,  
 }
 
@@ -176,5 +198,11 @@ struct Services {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Mc {
+    image: String,
     ports: Vec<String>,
+    environment: serde_yaml::Value,
+    tty: bool,
+    stdin_open: bool,
+    restart: String,
+    volumes: Vec<String>,
 }

@@ -1,3 +1,5 @@
+use std::process::Command;
+
 /*
  *
  * mc-docker:
@@ -34,7 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
     }
     */
 
-    mc_docker::run().await;
+    //mc_docker::run().await;
+
+    
+    //let output = Command::new("rm").arg("-rf").arg("/home/sylkos/servers/t1").output().unwrap();
+
+    //mc_docker::server::Server::new("t1".to_string(), None, None, Some(vec![14378, 33001, 31001, 31000]));
 
     //mc_docker::create::ComposeYaml::test();
 
