@@ -11,15 +11,9 @@ use crate::server::Server;
 use serde::{Serialize, Deserialize};
 use craftping::sync::ping;
 use std::net::TcpStream;
-use std::process::{Command, Stdio};
-use std::path::Path;
-use std::fs;
+use crate::Servers;
 
 type Result<T> = std::result::Result<T, Rejection>;
-type Servers = Arc<RwLock<HashMap<String, Server>>>;
-
-const PATH: &str = "/home/sylkos/servers";
-const COMPOSE: &str = "/home/sylkos/docker-compose.yml";
 
 pub async fn start_ws() {
     let servers: Servers = Arc::new(RwLock::new(HashMap::new()));
@@ -167,51 +161,8 @@ struct New {
 }
 
 async fn new_handler(body: New, servers: Servers) -> Result<impl Reply> {
-    let path_str = if let Some(p) = body.path {
-                    p 
-                } else {
-                    format!("{PATH}/{}", body.name)
-                };
-    
-    let path = Path::new(&path_str);
-
-    if !path.exists() {
-        std::fs::create_dir_all(path_str.clone()).expect("Error creating a new directory.");
-    }
-
-    let port = 12345;
-    // if compose doesn't exists, assign the port in the call, if it doesn't exist, assign the next
-    // available port above 25565
-
-    let compose_str = format!("{path_str}/docker-compose.yml"); 
-    let compose = Path::new(&compose_str);
-
-    if !compose.exists() {
-        fs::File::create(&compose_str).expect("Error creating docker compose");
-        std::fs::copy(COMPOSE, compose_str).expect("Error copying default contents of docker compose"); 
-
-        // read in compose and edit port
-    }
-    
-    let output = Command::new("docker")
-        .arg("compose")
-        .arg("up")
-        .arg("-d")
-        .stdin(Stdio::piped())
-        .output().unwrap();
-
-    println!("{:?}", output);
-    // parse output into ID
-    let id = "".to_string();
-
-    // add to Servers
-    let server = Server {
-        name: body.name,
-        path: path_str,
-        id,
-        port,
-    };
-
+    let ports = servers.write().await.values().clone().map(|v| v.port).collect::<Vec<u16>>();
+    let server = Server::new(body.name, body.path, body.port, Some(ports));
     servers.write().await.insert(server.name.clone(), server);
     Ok(StatusCode::OK)
 }
