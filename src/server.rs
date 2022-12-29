@@ -10,9 +10,8 @@ use chrono::Utc;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
     pub name: String,
-    pub path: String,
-    pub rcon: String,
     pub id: String,
+    pub path: String,
     pub port: u16,
 }
 

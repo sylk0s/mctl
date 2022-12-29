@@ -6,13 +6,15 @@ use bollard::container::Config;
  * Plans:
  *
  * - Be able to create a new server from some globally configurable defaults
+ *      -- unneeded, just write a docker compose file that configures everything
  * - Be able to create a new server with arbitrary properties
+ *      -- just write the correct docker compose
  * - Be able to create a new server with a prederemined path and docker-compose.yml
  * - Be able to reload an existing server into the framework
  * - Be able to spin up a new server with a precreated save file
  * - Be able to spin up a new server with a precreated server file
  * - Be able to load weird stuff into docker like MC 1.12
- *
+ * 
  */
 
 // All this stuff is so that I can serialize docker-compose.yml into the config file
@@ -52,9 +54,8 @@ impl ComposeYaml {
         println!("{:?}", test_struct);
     }
 
-    fn to_config(&self) -> Config<String> {
+    pub fn to_config(&self) -> Config<String> {
         let mut ports = HashMap::new();
-        // 
         let mut env = Vec::new();
         let mut vol = HashMap::new();
         Config {
@@ -68,3 +69,5 @@ impl ComposeYaml {
         }
     }
 }
+
+

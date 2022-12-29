@@ -11,19 +11,30 @@ use crate::server::Server;
 use serde::{Serialize, Deserialize};
 use craftping::sync::ping;
 use std::net::TcpStream;
+use std::process::{Command, Stdio};
+use std::path::Path;
+use std::fs;
 
 type Result<T> = std::result::Result<T, Rejection>;
 type Servers = Arc<RwLock<HashMap<String, Server>>>;
+
+const PATH: &str = "/home/sylkos/servers";
+const COMPOSE: &str = "/home/sylkos/docker-compose.yml";
 
 pub async fn start_ws() {
     let servers: Servers = Arc::new(RwLock::new(HashMap::new()));
 
     let server = Server {
         name: "TEST".to_string(),
-        path: "bbb".to_string(),
-        rcon: "ccc".to_string(),
+        path: "/home/sylkos/servers/test".to_string(),
         id: "249148a1229c".to_string(),
         port: 25565
+    };
+
+    let new = New {
+        name: "test2".to_string(),
+        path: Some("/home/sylkos/test2".to_string()),
+        port: Some(25567),
     };
 
     servers.write().await.insert(server.name.clone(), server);
@@ -53,13 +64,18 @@ pub async fn start_ws() {
         .and(with(servers.clone()))
         .and_then(stop_handler);
 
+    // Get the output of a server in a stream
     let output_route = warp::path!("output" / String)
         .and(warp::get())
         .and(with(servers.clone()))
         .and_then(output_handler);
 
     // Create a new server
-    //let new_route = warp::path("new")
+    let new_route = warp::path!("new")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(with(servers.clone()))
+        .and_then(new_handler);
 
     // Load a world file as a server
     //let load_route = warp::path("load")
@@ -141,4 +157,61 @@ async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
     let mut stream = TcpStream::connect((hostname, port)).unwrap();
     let pong = ping(&mut stream, hostname, port).expect("Cannot ping server");
     Ok(json(&pong))
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct New {
+    name: String,
+    path: Option<String>,
+    port: Option<u16>,
+}
+
+async fn new_handler(body: New, servers: Servers) -> Result<impl Reply> {
+    let path_str = if let Some(p) = body.path {
+                    p 
+                } else {
+                    format!("{PATH}/{}", body.name)
+                };
+    
+    let path = Path::new(&path_str);
+
+    if !path.exists() {
+        std::fs::create_dir_all(path_str.clone()).expect("Error creating a new directory.");
+    }
+
+    let port = 12345;
+    // if compose doesn't exists, assign the port in the call, if it doesn't exist, assign the next
+    // available port above 25565
+
+    let compose_str = format!("{path_str}/docker-compose.yml"); 
+    let compose = Path::new(&compose_str);
+
+    if !compose.exists() {
+        fs::File::create(&compose_str).expect("Error creating docker compose");
+        std::fs::copy(COMPOSE, compose_str).expect("Error copying default contents of docker compose"); 
+
+        // read in compose and edit port
+    }
+    
+    let output = Command::new("docker")
+        .arg("compose")
+        .arg("up")
+        .arg("-d")
+        .stdin(Stdio::piped())
+        .output().unwrap();
+
+    println!("{:?}", output);
+    // parse output into ID
+    let id = "".to_string();
+
+    // add to Servers
+    let server = Server {
+        name: body.name,
+        path: path_str,
+        id,
+        port,
+    };
+
+    servers.write().await.insert(server.name.clone(), server);
+    Ok(StatusCode::OK)
 }
