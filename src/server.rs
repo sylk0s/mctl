@@ -23,7 +23,8 @@ const PATH: &str = "/home/sylkos/servers";
 const COMPOSE: &str = "/home/sylkos/servers/docker-compose.yml";
 
 impl Server {
-    pub fn new(name: String, path: Option<String>, port_arg: Option<u16>, ports: Option<Vec<u16>>) -> Server {
+    // Maybe for this arg do the nice builder thing for all the optionals
+    pub fn new(name: String, path: Option<String>, port_arg: Option<u16>, ports: Option<Vec<u16>>, version: Option<String>, server_type: Option<String>) -> Server {
         let path = if let Some(p) = path {
                         p 
                     } else {
@@ -83,6 +84,14 @@ impl Server {
         println!("Port: {port}");
 
         compose.services.mc.ports = vec![format!("{port}:25565")];
+
+        if let Some(v) = version {
+            compose.services.mc.environment.VERSION = v;
+        }
+
+        if let Some(t) = server_type {
+            compose.services.mc.environment.TYPE = Some(t);
+        }
         
         println!("Writing updated compose to compose file");
         println!("Compose path: {compose_str}");
@@ -200,9 +209,26 @@ struct Services {
 struct Mc {
     image: String,
     ports: Vec<String>,
-    environment: serde_yaml::Value,
+    environment: Env,
     tty: bool,
     stdin_open: bool,
     restart: String,
     volumes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+struct Env {
+    EULA: String,
+    VERSION: String,
+    TYPE: Option<String>,
+    MOTD: Option<String>,
+    DIFFICULTY: Option<String>,
+    ENABLE_WHITELIST: Option<String>,
+    WHITELIST: Option<String>,
+    OPS: Option<String>,
+    MAX_PLAYERS: Option<u16>,
+    SEED: Option<String>,
+    MODE: Option<String>,
+    CUSTOM_SERVER: Option<String>,
 }

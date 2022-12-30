@@ -18,6 +18,7 @@ type Result<T> = std::result::Result<T, Rejection>;
 pub async fn start_ws() {
     let servers: Servers = Arc::new(RwLock::new(HashMap::new()));
 
+    /*
     let server = Server {
         name: "TEST".to_string(),
         path: "/home/sylkos/servers/test".to_string(),
@@ -25,15 +26,10 @@ pub async fn start_ws() {
         port: 25565
     };
 
-    let new = New {
-        name: "test2".to_string(),
-        path: Some("/home/sylkos/test2".to_string()),
-        port: Some(25567),
-    };
-
     servers.write().await.insert(server.name.clone(), server);
 
     status_handler("TEST".to_string(), servers.clone()).await.expect("aaa");
+    */
 
     // Ping the server
     let ping_route = warp::path!("beep")
@@ -84,6 +80,11 @@ pub async fn start_ws() {
         .and(with(servers.clone()))
         .and_then(status_handler);
     // /status/{id}/{_, /{stat}}
+    
+    let list_route = warp::path!("list")
+        .and(warp::get())
+        .and(with(servers.clone()))
+        .and_then(list_handler);
 
     let routes = ping_route
         .or(start_route)
@@ -91,6 +92,8 @@ pub async fn start_ws() {
         .or(stop_route)
         .or(output_route)
         .or(status_route)
+        .or(new_route)
+        .or(list_route)
         .with(warp::cors().allow_any_origin());
 
     println!("Everything loaded in, starting Web Server now...");
@@ -155,14 +158,26 @@ async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct New {
-    name: String,
+    id: String,
     path: Option<String>,
     port: Option<u16>,
+    version: Option<String>,
+    server_type: Option<String>,
 }
 
 async fn new_handler(body: New, servers: Servers) -> Result<impl Reply> {
+    println!("Creating new server...");
     let ports = servers.write().await.values().clone().map(|v| v.port).collect::<Vec<u16>>();
-    let server = Server::new(body.name, body.path, body.port, Some(ports));
+    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type);
     servers.write().await.insert(server.name.clone(), server);
     Ok(StatusCode::OK)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ListResponse {
+    servers: Vec<String>,
+}
+
+async fn list_handler(servers: Servers) -> Result<impl Reply> {
+    Ok(json(&ListResponse { servers: servers.write().await.keys().map(|a| a.to_owned()).collect() }))
 }

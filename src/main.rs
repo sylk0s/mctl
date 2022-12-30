@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
     }
     */
 
-    //mc_docker::run().await;
+    mc_docker::run().await;
 
     
     //let output = Command::new("rm").arg("-rf").arg("/home/sylkos/servers/t1").output().unwrap();
