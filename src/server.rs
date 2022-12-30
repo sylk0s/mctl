@@ -3,13 +3,15 @@ use bollard::{
     exec::CreateExecOptions,
     container::{LogsOptions, LogOutput},
     errors::Error };
-use futures::Stream;
+use futures::{Stream, stream::StreamExt, future};
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::path::Path;
 use std::fs;
 use std::io::prelude::*;
+use regex::Regex;
+use hyper::body::Bytes;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
@@ -114,8 +116,11 @@ impl Server {
             .current_dir(&path)
             .output().unwrap().stderr;
 
+
         // btw this doesnt work if the container is already running, add a handler for that?
-        let id = std::str::from_utf8(&output).unwrap().split(" ").skip_while(|e| !e.starts_with("Creating\nContainer")).skip(1).next().unwrap().to_string();
+        let str_out = std::str::from_utf8(&output).unwrap();
+        println!("Output from docker compose: \n{str_out}");
+        let id = str_out.split("\n").skip_while(|e| !e.starts_with("Container")).next().expect("aaa").split(" ").skip(1).next().expect("bbb").to_string();
         println!("Id: {:?}", id);
 
         // add to Servers
@@ -190,6 +195,25 @@ impl Server {
         });
 
         docker.logs(&self.id, options)
+    }
+
+    pub fn clean_output(&self) -> impl Stream<Item = Result<hyper::body::Bytes, bollard::errors::Error>> {
+        self.output().filter_map(|msg| {
+            future::ready(match msg {
+                Ok(m) => {
+                    let re1 = Regex::new(r"<.*>.*").unwrap();
+                    let re2 = Regex::new(r"left the game").unwrap();
+                    let re3 = Regex::new(r"joined the game").unwrap();
+                    if re1.is_match(&m.to_string()) || re2.is_match(&m.to_string()) || re3.is_match(&m.to_string()) {
+                        let text = m.to_string().split(" ").skip(3).fold(String::new(), |a, b| format!("{a} {b}"));
+                        Some(Ok(Bytes::from(text)))
+                    } else {
+                        None
+                    }
+                        }
+                Err(_) => None,
+            })
+        })
     }
 }
 

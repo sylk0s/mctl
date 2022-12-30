@@ -67,9 +67,6 @@ pub async fn start_ws() {
         .and(with(servers.clone()))
         .and_then(new_handler);
 
-    // Load a world file as a server
-    //let load_route = warp::path("load")
-
     // Create a backup of a server
     //let backup_route = warp::path("backup")
     // /backup/{id}/{_, /region/{x-y}}
@@ -86,6 +83,16 @@ pub async fn start_ws() {
         .and(with(servers.clone()))
         .and_then(list_handler);
 
+    let rm_route = warp::path!("rm" / String)
+        .and(warp::delete())
+        .and(with(servers.clone()))
+        .and_then(rm_handler);
+
+    let clean_route = warp::path!("cleanout" / String)
+        .and(warp::get())
+        .and(with(servers.clone()))
+        .and_then(clean_output_handler);
+
     let routes = ping_route
         .or(start_route)
         .or(exec_route)
@@ -94,6 +101,8 @@ pub async fn start_ws() {
         .or(status_route)
         .or(new_route)
         .or(list_route)
+        .or(rm_route)
+        .or(clean_route)
         .with(warp::cors().allow_any_origin());
 
     println!("Everything loaded in, starting Web Server now...");
@@ -147,6 +156,13 @@ async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
                                                                      }))))
 }
 
+async fn clean_output_handler(id: String, servers: Servers) -> Result<impl Reply> {
+    println!("Getting clean output from {id}");
+    Ok(warp::reply::Response::new(
+            hyper::Body::wrap_stream(
+                servers.write().await.get(&id).unwrap().clean_output())))
+}
+
 async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Attempting to get status");
     let hostname = "localhost";
@@ -180,4 +196,11 @@ struct ListResponse {
 
 async fn list_handler(servers: Servers) -> Result<impl Reply> {
     Ok(json(&ListResponse { servers: servers.write().await.keys().map(|a| a.to_owned()).collect() }))
+}
+
+// NOTE - Doesn't stop the container from running. I think I will leave that for the client to
+// implemenet
+async fn rm_handler(id: String, servers: Servers) -> Result<impl Reply> {
+    servers.write().await.remove(&id);
+    Ok(StatusCode::OK)
 }
