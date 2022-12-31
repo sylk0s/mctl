@@ -77,14 +77,22 @@ impl Server {
         let compose_file = fs::read_to_string(compose_str.clone()).unwrap();
         let mut compose: Compose = serde_yaml::from_str(&compose_file).unwrap();
 
+        let def_file = fs::read_to_string(format!("{CONF_PATH}/docker-compose.yml")).unwrap();
+        let def: Compose = serde_yaml::from_str(&def_file).unwrap();
+
         let port_from_file = compose.services.mc.ports.get(0).unwrap().split(":").next().unwrap().parse::<u16>().unwrap();
+        let def_port = def.services.mc.ports.get(0).unwrap().split(":").next().unwrap().parse::<u16>().unwrap();
         println!("Port from file is: {port_from_file}");
+        println!("Default port is: {def_port}");
+
         let port = if let Some(p) = port_arg { 
             p 
         } else { 
             // Find the next available port above 31000
             // fairly certain there is a bug here
-            if port_from_file == 25565 {
+            println!("{:?}", ports);
+            if port_from_file == def_port {
+                println!("Finding next empty port...");
                 ports.iter().fold(31000-1, |a, b| {
                     if a+1 == *b { *b } else {
                         a  
@@ -220,7 +228,7 @@ impl Server {
                     let re2 = Regex::new(r"left the game").unwrap();
                     let re3 = Regex::new(r"joined the game").unwrap();
                     if re1.is_match(&m.to_string()) || re2.is_match(&m.to_string()) || re3.is_match(&m.to_string()) {
-                        let text = m.to_string().split(" ").skip(3).fold(String::new(), |a, b| format!("{a} {b}"));
+                        let text = m.to_string().split(" ").skip(3).fold(String::new(), |a, b| format!("{a} {b}")).trim_end_matches("\r\n").to_string();
                         Some(Ok(Bytes::from(text)))
                     } else {
                         None

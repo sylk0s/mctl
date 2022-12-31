@@ -1,7 +1,9 @@
+/*
 use serde::Deserialize;
 use std::{
     io::{prelude::*, BufReader},
     net::TcpStream};
+    */
 
 // TODO: Maybe someday write my own code for the Minecraft Server Ping protocol
 
