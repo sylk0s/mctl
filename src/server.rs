@@ -13,6 +13,7 @@ use std::io::prelude::*;
 use regex::Regex;
 use hyper::body::Bytes;
 use crate::cloud::{CloudSync, Unique};
+use crate::{Config, CONF_PATH};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
@@ -22,16 +23,25 @@ pub struct Server {
     pub port: u16,
 }
 
-const PATH: &str = "/home/sylkos/servers";
-const COMPOSE: &str = "/home/sylkos/servers/docker-compose.yml";
-
 impl Server {
     // Maybe for this arg do the nice builder thing for all the optionals
-    pub async fn new(name: String, path: Option<String>, port_arg: Option<u16>, ports: Option<Vec<u16>>, version: Option<String>, server_type: Option<String>) -> Server {
+    pub async fn new(
+        name: String, 
+        
+        path: Option<String>, 
+        port_arg: Option<u16>,
+        ports: Option<Vec<u16>>, 
+        version: Option<String>, 
+        server_type: Option<String>, 
+        
+        //server_config: &ServerConfig,
+        config: Config
+        ) -> Server {
+
         let path = if let Some(p) = path {
                         p 
                     } else {
-                        format!("{PATH}/{}", name)
+                        format!("{}/{}", config.path, name)
                     };
 
         println!("Path: {path}");
@@ -54,7 +64,7 @@ impl Server {
         if !compose.exists() {
             println!("Compose file doesn't exist at path");
             fs::File::create(&compose_str).expect("Error creating docker compose");
-            fs::copy(COMPOSE, compose_str.clone()).expect("Error copying default contents of docker compose"); 
+            fs::copy(format!("{CONF_PATH}/docker-compose.yml"), compose_str.clone()).expect("Error copying default contents of docker compose"); 
         }
 
         let ports = if let Some(p) = ports {
@@ -233,6 +243,55 @@ impl CloudSync for Server {
         "servers" 
     }
 }
+
+/*
+// IDK if I wanna do something like this or not. It makes implememntation tricky
+// Trying to reimplememnt the builder pattern I've seen before here
+pub struct ServerConfig {
+    path: Option<String>, 
+    port_arg: Option<u16>,
+    ports: Option<Vec<u16>>, 
+    version: Option<String>, 
+    server_type: Option<String>, 
+}
+
+impl ServerConfig {
+    pub fn new() -> ServerConfig {
+        ServerConfig {
+            path: None,
+            port_arg: None,
+            ports: None,
+            version: None,
+            server_type: None,
+        }
+    }
+
+    pub fn path(&mut self, path: String) -> &ServerConfig {
+        self.path = Some(path);
+        self
+    }
+
+    pub fn port(&mut self, port: u16) -> &ServerConfig {
+        self.port_arg = Some(port);
+        self
+    }
+
+    pub fn ports(&mut self, ports: Vec<u16>) -> &ServerConfig {
+        self.ports = Some(ports);
+        self
+    }
+
+    pub fn version(&mut self, version: String) -> &ServerConfig {
+        self.version = Some(version);
+        self
+    }
+
+    pub fn server_type(&mut self, server_type: String) -> &ServerConfig {
+        self.server_type = Some(server_type);
+        self
+    }
+}
+*/
 
 // Sketch thing for yaml
 #[derive(Serialize, Deserialize, Debug)]

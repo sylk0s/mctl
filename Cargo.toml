@@ -21,3 +21,4 @@ craftping = { git = "https://github.com/kiwiyou/craftping" }
 regex = "1.7.0"
 firestore = "0.11"
 dotenv = "0.15"
+toml = "0.5.10"

@@ -1,5 +1,3 @@
-use std::process::Command;
-
 /*
  *
  * mc-docker:
@@ -19,18 +17,6 @@ use std::process::Command;
  * - Add configs to everything
  *
  */
-
-/*
- *
- * Config path things:
- * Project_ID for firebase
- * port
- * path
- * config path -> contains compose
- * -> modules
- * 
- */
-
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {

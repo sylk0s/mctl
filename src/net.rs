@@ -8,16 +8,11 @@ use crate::server::Server;
 use serde::{Serialize, Deserialize};
 use craftping::sync::ping;
 use std::net::TcpStream;
-use crate::Servers;
+use crate::{Servers, Config};
 
 type Result<T> = std::result::Result<T, Rejection>;
 
-pub async fn start_ws(servers: Servers) {
-    /*
-    servers.write().await.insert(server.name.clone(), server);
-
-    status_handler("TEST".to_string(), servers.clone()).await.expect("aaa");
-    */
+pub async fn start_ws(servers: Servers, config: Config) {
 
     // Ping the server
     let ping_route = warp::path!("beep")
@@ -53,6 +48,7 @@ pub async fn start_ws(servers: Servers) {
         .and(warp::post())
         .and(warp::body::json())
         .and(with(servers.clone()))
+        .and(with(config.clone()))
         .and_then(new_handler);
 
     // Create a backup of a server
@@ -93,10 +89,9 @@ pub async fn start_ws(servers: Servers) {
         .or(clean_route)
         .with(warp::cors().allow_any_origin());
 
-    println!("Everything loaded in, starting Web Server now...");
+    println!("Everything loaded in, starting Web Server on port {} now...", config.ws_port);
 
-    // fix hardcoded stuff with config file later
-    warp::serve(routes).run(([127, 0, 0, 1], 7955)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], config.ws_port)).await;
 }
 
 fn with<T>(items: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone
@@ -169,10 +164,11 @@ struct New {
     server_type: Option<String>,
 }
 
-async fn new_handler(body: New, servers: Servers) -> Result<impl Reply> {
+async fn new_handler(body: New, servers: Servers, config: Config) -> Result<impl Reply> {
     println!("Creating new server...");
     let ports = servers.write().await.values().clone().map(|v| v.port).collect::<Vec<u16>>();
-    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type).await;
+    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type, config).await;
+
     servers.write().await.insert(server.name.clone(), server);
     Ok(StatusCode::OK)
 }
