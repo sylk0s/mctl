@@ -5,6 +5,7 @@ use server::Server;
 use cloud::CloudSync;
 use std::fs;
 use serde::Deserialize;
+use std::process::Command;
 
 pub mod server;
 pub mod net;
@@ -19,6 +20,8 @@ pub async fn run() {
     let servers = load_from_cloud().await.unwrap();
 
     println!("Servers: {:?}", servers.write().await);
+
+    load_modules(config.clone()).await;
     net::start_ws(servers, config).await;    
 }
 
@@ -50,5 +53,15 @@ impl Config {
     fn get() -> Config {
         let conf_file = fs::read_to_string(format!("{CONF_PATH}/config.toml")).expect("Failed to read config from fs");
         toml::from_str(&conf_file).expect("Error parsing config file from toml")
+    }
+}
+
+async fn load_modules(config: Config) {
+    for module in config.modules {
+        tokio::spawn(async move {
+            // change this so we can specific a module path?
+            let _m = Command::new(module)
+                .spawn().unwrap();
+        });
     }
 }
