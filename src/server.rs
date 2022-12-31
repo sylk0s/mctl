@@ -12,6 +12,7 @@ use std::fs;
 use std::io::prelude::*;
 use regex::Regex;
 use hyper::body::Bytes;
+use crate::cloud::{CloudSync, Unique};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
@@ -26,7 +27,7 @@ const COMPOSE: &str = "/home/sylkos/servers/docker-compose.yml";
 
 impl Server {
     // Maybe for this arg do the nice builder thing for all the optionals
-    pub fn new(name: String, path: Option<String>, port_arg: Option<u16>, ports: Option<Vec<u16>>, version: Option<String>, server_type: Option<String>) -> Server {
+    pub async fn new(name: String, path: Option<String>, port_arg: Option<u16>, ports: Option<Vec<u16>>, version: Option<String>, server_type: Option<String>) -> Server {
         let path = if let Some(p) = path {
                         p 
                     } else {
@@ -72,6 +73,7 @@ impl Server {
             p 
         } else { 
             // Find the next available port above 31000
+            // fairly certain there is a bug here
             if port_from_file == 25565 {
                 ports.iter().fold(31000-1, |a, b| {
                     if a+1 == *b { *b } else {
@@ -124,12 +126,15 @@ impl Server {
         println!("Id: {:?}", id);
 
         // add to Servers
-        Server {
+        let server = Server {
             name,
             path,
             id,
             port,
-        }
+        };
+
+        server.clsave("servers").await.unwrap();
+        server
     }
 
     pub async fn send_command(&self, cmd: Vec<String>) -> Result<String, String> {
@@ -214,6 +219,18 @@ impl Server {
                 Err(_) => None,
             })
         })
+    }
+}
+
+impl Unique for Server {
+    fn uuid(&self) -> String {
+        self.name.clone()
+    }
+}
+
+impl CloudSync for Server {
+    fn clname() -> &'static str {
+        "servers" 
     }
 }
 

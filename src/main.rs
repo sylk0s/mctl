@@ -20,8 +20,28 @@ use std::process::Command;
  *
  */
 
+/*
+ *
+ * Config path things:
+ * Project_ID for firebase
+ * port
+ * path
+ * config path -> contains compose
+ * -> modules
+ * 
+ */
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
+
+    dotenv::dotenv().expect("Didn't fine .env file :("); 
+/*
+    let server = Server::new("test".to_string(), None, None, None, None, None);
+
+    server.clsave("servers").await.expect("clsave borkn");
+*/
+    
 
     //server.send_command(vec!["tellraw", "@a", "{\"text\":\"boop\"}"]).await.expect("It broken");
 

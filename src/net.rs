@@ -1,7 +1,4 @@
-use std::collections::HashMap;
 use std::convert::Infallible;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use warp::{
     http::StatusCode,
     reply::json,
@@ -15,17 +12,8 @@ use crate::Servers;
 
 type Result<T> = std::result::Result<T, Rejection>;
 
-pub async fn start_ws() {
-    let servers: Servers = Arc::new(RwLock::new(HashMap::new()));
-
+pub async fn start_ws(servers: Servers) {
     /*
-    let server = Server {
-        name: "TEST".to_string(),
-        path: "/home/sylkos/servers/test".to_string(),
-        id: "249148a1229c".to_string(),
-        port: 25565
-    };
-
     servers.write().await.insert(server.name.clone(), server);
 
     status_handler("TEST".to_string(), servers.clone()).await.expect("aaa");
@@ -184,7 +172,7 @@ struct New {
 async fn new_handler(body: New, servers: Servers) -> Result<impl Reply> {
     println!("Creating new server...");
     let ports = servers.write().await.values().clone().map(|v| v.port).collect::<Vec<u16>>();
-    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type);
+    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type).await;
     servers.write().await.insert(server.name.clone(), server);
     Ok(StatusCode::OK)
 }
