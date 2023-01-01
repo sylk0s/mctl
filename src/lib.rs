@@ -11,6 +11,7 @@ pub mod server;
 pub mod net;
 pub mod status;
 pub mod cloud;
+pub mod handlers;
 
 pub type Servers = Arc<RwLock<HashMap<String, Server>>>;
 
