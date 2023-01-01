@@ -36,7 +36,7 @@ impl Server {
         
         //server_config: &ServerConfig,
         config: Config
-        ) -> Server {
+        ) -> Result<Server, String> {
 
         let path = if let Some(p) = path {
                         p 
@@ -50,7 +50,10 @@ impl Server {
 
         if !path_obj.exists() {
             println!("No path found, making a new path");
-            std::fs::create_dir_all(path.clone()).expect("Error creating a new directory.");
+            if let Err(_) = std::fs::create_dir_all(path.clone()) {
+                return Err("Error creating a new directory".to_string())
+            };
+
         }
 
         // if compose doesn't exists, assign the port in the call, if it doesn't exist, assign the next
@@ -63,8 +66,12 @@ impl Server {
 
         if !compose.exists() {
             println!("Compose file doesn't exist at path");
-            fs::File::create(&compose_str).expect("Error creating docker compose");
-            fs::copy(format!("{CONF_PATH}/docker-compose.yml"), compose_str.clone()).expect("Error copying default contents of docker compose"); 
+            if let Err(_) = fs::File::create(&compose_str) {
+                return Err("Error creating docker new docker compose file".to_string())
+            };
+            if let Err(_) = fs::copy(format!("{CONF_PATH}/docker-compose.yml"), compose_str.clone()) {
+                return Err("Error copying default contents of docker compose file".to_string())
+            };
         }
 
         let ports = if let Some(p) = ports {
@@ -74,14 +81,47 @@ impl Server {
         };
 
         println!("Reading compose file to string");
-        let compose_file = fs::read_to_string(compose_str.clone()).unwrap();
-        let mut compose: Compose = serde_yaml::from_str(&compose_file).unwrap();
 
-        let def_file = fs::read_to_string(format!("{CONF_PATH}/docker-compose.yml")).unwrap();
-        let def: Compose = serde_yaml::from_str(&def_file).unwrap();
+        let compose_file = if let Ok(c) = fs::read_to_string(compose_str.clone()) { c } else {
+            return Err("Error reading compose file to a string".to_string())
+        };
 
-        let port_from_file = compose.services.mc.ports.get(0).unwrap().split(":").next().unwrap().parse::<u16>().unwrap();
-        let def_port = def.services.mc.ports.get(0).unwrap().split(":").next().unwrap().parse::<u16>().unwrap();
+        let mut compose: Compose = if let Ok(c) = serde_yaml::from_str(&compose_file) { c } else {
+            return Err("Error parsing YAML from compose file".to_string())
+        };
+
+        let def_file = if let Ok(d) = fs::read_to_string(format!("{CONF_PATH}/docker-compose.yml")) { d } else {
+            return Err("Error reading default compose file to string".to_string())
+        };
+
+        let def: Compose = if let Ok(d) = serde_yaml::from_str(&def_file) { d } else {
+            return Err("Error parsing YAML from default compose file".to_string())
+        };
+
+        let port_from_file = if let Some(a) = compose.services.mc.ports.get(0) {
+            if let Some(b) = a.split(":").next() {
+                if let Ok(c) = b.parse::<u16>() { c } else {
+                    return Err("Failed parsing port".to_string())
+                }
+            } else {
+                return Err("Port string in YAML is misformatted".to_string())
+            }
+        } else {
+            return Err("Could not get \"ports\" field from YAML".to_string())       
+        };
+
+        let def_port = if let Some(a) = def.services.mc.ports.get(0) {
+            if let Some(b) = a.split(":").next() {
+                if let Ok(c) = b.parse::<u16>() { c } else {
+                    return Err("Failed parsing port".to_string())
+                }
+            } else {
+                return Err("Port string in YAML is misformatted".to_string())
+            }
+        } else {
+            return Err("Could not get \"ports\" field from YAML".to_string())       
+        };
+
         println!("Port from file is: {port_from_file}");
         println!("Default port is: {def_port}");
 
@@ -117,30 +157,52 @@ impl Server {
         
         println!("Writing updated compose to compose file");
         println!("Compose path: {compose_str}");
-        let mut file = fs::OpenOptions::new()
+        let mut file = if let Ok(f) = fs::OpenOptions::new()
             .write(true)
             .truncate(true)
             .append(false)
-            .open(compose_str)
-            .unwrap();
-        file.write(serde_yaml::to_string(&compose).expect("tostr").as_bytes()).expect("error writing");
+            .open(compose_str) { f } else {
+                return Err("Failed to open compose file for updating".to_string())
+            };
+        let yaml = if let Ok(y) = serde_yaml::to_string(&compose) { y } else {
+            return Err("Failed to parse YAML object back into string".to_string())
+        };
+        
+        if let Err(_) = file.write(yaml.as_bytes()) {
+            return Err("Failed to write YAML object to file".to_string());
+        };
 
         if ports.iter().any(|e| e == &port) {
             println!("Warning, server is already registered on this port!"); 
         }
 
-        let output = Command::new("docker")
+        // Add some error handling for is the server is already running on the port
+
+        let output = if let Ok(o) = Command::new("docker")
             .arg("compose")
             .arg("up")
             .arg("-d")
             .current_dir(&path)
-            .output().unwrap().stderr;
+            .output() { o.stderr } else {
+                return Err("Failed to run docker-compose command".to_string());
+            };
 
 
         // btw this doesnt work if the container is already running, add a handler for that?
-        let str_out = std::str::from_utf8(&output).unwrap();
+        let str_out = if let Ok(s) = std::str::from_utf8(&output) { s } else {
+            return Err("Failed to parse cmd output".to_string())
+        };
         println!("Output from docker compose: \n{str_out}");
-        let id = str_out.split("\n").skip_while(|e| !e.starts_with("Container")).next().expect("aaa").split(" ").skip(1).next().expect("bbb").to_string();
+
+        let id = if let Some(a) = str_out.split("\n").skip_while(|e| !e.starts_with("Container")).next() {
+            if let Some(b) = a.split(" ").skip(1).next() {
+                b.to_string()
+            } else {
+                return Err("Couldn't find container ID".to_string());
+            }
+        } else {
+            return Err("Couldn't find container ID".to_string());
+        };
         println!("Id: {:?}", id);
 
         // add to Servers
@@ -151,16 +213,20 @@ impl Server {
             port,
         };
 
-        server.clsave("servers").await.unwrap();
-        server
+        if let Err(_) = server.clsave("servers").await {
+            return Err("Failed to save new server object to firebase".to_string());
+        };
+        Ok(server)
     }
 
     pub async fn send_command(&self, cmd: Vec<String>) -> Result<String, String> {
         #[cfg(unix)]
-        let docker = Docker::connect_with_socket_defaults().unwrap();
+        let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
+            return Err("Couldn't connect to docker on default socket".to_string());
+        };
 
         let full_cmd = cmd.iter().fold(vec!["rcon-cli"], |mut acc, x| { acc.push(x.as_str()); acc });
-        let exec = docker
+        let exec = if let Ok(e) = docker
         .create_exec(
             &self.id,
             CreateExecOptions {
@@ -170,8 +236,9 @@ impl Server {
                 ..Default::default()
             },
         )
-        .await.unwrap()
-        .id;
+        .await { e.id } else {
+            return Err("Failed creating exec for docker".to_string())
+        };
 
         if let Ok(_) = docker.start_exec(&exec, None).await {
             return Ok(String::from("Successfully sent cmd to container"));
@@ -182,7 +249,9 @@ impl Server {
 
     pub async fn start(&self) -> Result<String, String> {
         #[cfg(unix)]
-        let docker = Docker::connect_with_socket_defaults().unwrap();
+        let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
+            return Err("Couldn't connect to docker on default socket".to_string());
+        };
         
         if let Ok(_) = docker.start_container::<String>(&self.id, None).await {
             return Ok(String::from("Successfully started the container"));
@@ -193,7 +262,9 @@ impl Server {
 
     pub async fn stop(&self) -> Result<String, String> {
         #[cfg(unix)]
-        let docker = Docker::connect_with_socket_defaults().unwrap();
+        let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
+            return Err("Couldn't connect to docker on default socket".to_string());
+        };
 
         if let Ok(_) = docker.stop_container(&self.id, None).await {
             return Ok(String::from("Successfully stopped the container"));
@@ -206,37 +277,47 @@ impl Server {
         unimplemented!();
     }
 
-   pub fn output(&self) -> impl Stream<Item = Result<LogOutput, Error>> {
-       #[cfg(unix)]
-       let docker = Docker::connect_with_socket_defaults().unwrap();
+   pub fn output(&self) -> Result<impl Stream<Item = Result<LogOutput, Error>>, String> {
+        #[cfg(unix)]
+        let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
+            return Err("Couldn't connect to docker on default socket".to_string());
+        };
 
-       let options = Some(LogsOptions::<String>{
+        let options = Some(LogsOptions::<String>{
             stdout: true,
             since: Utc::now().timestamp(),
             follow: true,
             ..Default::default()
         });
 
-        docker.logs(&self.id, options)
+        Ok(docker.logs(&self.id, options))
     }
 
-    pub fn clean_output(&self) -> impl Stream<Item = Result<hyper::body::Bytes, bollard::errors::Error>> {
-        self.output().filter_map(|msg| {
-            future::ready(match msg {
-                Ok(m) => {
-                    let re1 = Regex::new(r"<.*>.*").unwrap();
-                    let re2 = Regex::new(r"left the game").unwrap();
-                    let re3 = Regex::new(r"joined the game").unwrap();
-                    if re1.is_match(&m.to_string()) || re2.is_match(&m.to_string()) || re3.is_match(&m.to_string()) {
-                        let text = m.to_string().split(" ").skip(3).fold(String::new(), |a, b| format!("{a} {b}")).trim_end_matches("\r\n").to_string();
-                        Some(Ok(Bytes::from(text)))
-                    } else {
-                        None
-                    }
-                        }
-                Err(_) => None,
-            })
-        })
+    pub fn clean_output(&self) -> Result<impl Stream<Item = Result<hyper::body::Bytes, bollard::errors::Error>>, String> {
+        match self.output() {
+            Ok(l) => {
+                Ok(l.filter_map(|msg| {
+                    future::ready(match msg {
+                        Ok(m) => {
+                            // I think these are fine because they should always work
+                            // TODO: Add lazy static crate?
+                            // Add configuability for different matches?
+                            let re1 = Regex::new(r"<.*>.*").unwrap();
+                            let re2 = Regex::new(r"left the game").unwrap();
+                            let re3 = Regex::new(r"joined the game").unwrap();
+                            if re1.is_match(&m.to_string()) || re2.is_match(&m.to_string()) || re3.is_match(&m.to_string()) {
+                                let text = m.to_string().split(" ").skip(3).fold(String::new(), |a, b| format!("{a} {b}")).trim_end_matches("\r\n").to_string();
+                                Some(Ok(Bytes::from(text)))
+                            } else {
+                                None
+                            }
+                                }
+                        Err(_) => None,
+                    })
+                }))
+            },
+            Err(e) => Err(e),
+        }
     }
 }
 

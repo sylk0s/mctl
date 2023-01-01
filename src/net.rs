@@ -132,7 +132,7 @@ async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Getting output from {id}");
     Ok(warp::reply::Response::new(
             hyper::Body::wrap_stream(
-                servers.write().await.get(&id).unwrap().output().map(|item| 
+                servers.write().await.get(&id).unwrap().output().unwrap().map(|item| 
                                                                      match item {
                                                                         Ok(out) => Ok(out.into_bytes()),
                                                                         Err(e) => Err(e),
@@ -143,7 +143,7 @@ async fn clean_output_handler(id: String, servers: Servers) -> Result<impl Reply
     println!("Getting clean output from {id}");
     Ok(warp::reply::Response::new(
             hyper::Body::wrap_stream(
-                servers.write().await.get(&id).unwrap().clean_output())))
+                servers.write().await.get(&id).unwrap().clean_output().unwrap())))
 }
 
 async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
@@ -167,7 +167,7 @@ struct New {
 async fn new_handler(body: New, servers: Servers, config: Config) -> Result<impl Reply> {
     println!("Creating new server...");
     let ports = servers.write().await.values().clone().map(|v| v.port).collect::<Vec<u16>>();
-    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type, config).await;
+    let server = Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type, config).await.unwrap();
 
     servers.write().await.insert(server.name.clone(), server);
     Ok(StatusCode::OK)
