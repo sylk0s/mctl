@@ -1,8 +1,8 @@
 use bollard::{
     Docker,
     exec::CreateExecOptions,
-    container::{LogsOptions, LogOutput},
-    errors::Error };
+    container::{LogsOptions, LogOutput}
+};
 use futures::{Stream, stream::StreamExt, future};
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
@@ -14,6 +14,11 @@ use regex::Regex;
 use hyper::body::Bytes;
 use crate::cloud::{CloudSync, Unique};
 use crate::{Config, CONF_PATH};
+use craftping::{
+    tokio::ping,
+    Response};
+use tokio::net::TcpStream;
+use crate::error::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Server {
@@ -36,7 +41,7 @@ impl Server {
         
         //server_config: &ServerConfig,
         config: Config
-        ) -> Result<Server, String> {
+        ) -> Result<Server, Error> {
 
         let path = if let Some(p) = path {
                         p 
@@ -51,7 +56,7 @@ impl Server {
         if !path_obj.exists() {
             println!("No path found, making a new path");
             if let Err(_) = std::fs::create_dir_all(path.clone()) {
-                return Err("Error creating a new directory".to_string())
+                return Err(Error::from("Error creating a new directory"))
             };
 
         }
@@ -67,10 +72,10 @@ impl Server {
         if !compose.exists() {
             println!("Compose file doesn't exist at path");
             if let Err(_) = fs::File::create(&compose_str) {
-                return Err("Error creating docker new docker compose file".to_string())
+                return Err(Error::from("Error creating docker new docker compose file"))
             };
             if let Err(_) = fs::copy(format!("{CONF_PATH}/docker-compose.yml"), compose_str.clone()) {
-                return Err("Error copying default contents of docker compose file".to_string())
+                return Err(Error::from("Error copying default contents of docker compose file"))
             };
         }
 
@@ -83,43 +88,43 @@ impl Server {
         println!("Reading compose file to string");
 
         let compose_file = if let Ok(c) = fs::read_to_string(compose_str.clone()) { c } else {
-            return Err("Error reading compose file to a string".to_string())
+            return Err(Error::from("Error reading compose file to a string"))
         };
 
         let mut compose: Compose = if let Ok(c) = serde_yaml::from_str(&compose_file) { c } else {
-            return Err("Error parsing YAML from compose file".to_string())
+            return Err(Error::from("Error parsing YAML from compose file"))
         };
 
         let def_file = if let Ok(d) = fs::read_to_string(format!("{CONF_PATH}/docker-compose.yml")) { d } else {
-            return Err("Error reading default compose file to string".to_string())
+            return Err(Error::from("Error reading default compose file to string"))
         };
 
         let def: Compose = if let Ok(d) = serde_yaml::from_str(&def_file) { d } else {
-            return Err("Error parsing YAML from default compose file".to_string())
+            return Err(Error::from("Error parsing YAML from default compose file"))
         };
 
         let port_from_file = if let Some(a) = compose.services.mc.ports.get(0) {
             if let Some(b) = a.split(":").next() {
                 if let Ok(c) = b.parse::<u16>() { c } else {
-                    return Err("Failed parsing port".to_string())
+                    return Err(Error::from("Failed parsing port"))
                 }
             } else {
-                return Err("Port string in YAML is misformatted".to_string())
+                return Err(Error::from("Port string in YAML is misformatted"))
             }
         } else {
-            return Err("Could not get \"ports\" field from YAML".to_string())       
+            return Err(Error::from("Could not get \"ports\" field from YAML"))       
         };
 
         let def_port = if let Some(a) = def.services.mc.ports.get(0) {
             if let Some(b) = a.split(":").next() {
                 if let Ok(c) = b.parse::<u16>() { c } else {
-                    return Err("Failed parsing port".to_string())
+                    return Err(Error::from("Failed parsing port"))
                 }
             } else {
-                return Err("Port string in YAML is misformatted".to_string())
+                return Err(Error::from("Port string in YAML is misformatted"))
             }
         } else {
-            return Err("Could not get \"ports\" field from YAML".to_string())       
+            return Err(Error::from("Could not get \"ports\" field from YAML"))       
         };
 
         println!("Port from file is: {port_from_file}");
@@ -162,14 +167,16 @@ impl Server {
             .truncate(true)
             .append(false)
             .open(compose_str) { f } else {
-                return Err("Failed to open compose file for updating".to_string())
+                return Err(Error::from("Failed to open compose file for updating"))
             };
+
+        // I think this one is fine to leave as an unwrap, shouldn't fail
         let yaml = if let Ok(y) = serde_yaml::to_string(&compose) { y } else {
-            return Err("Failed to parse YAML object back into string".to_string())
+            return Err(Error::from("Error reading {} to file"));
         };
         
         if let Err(_) = file.write(yaml.as_bytes()) {
-            return Err("Failed to write YAML object to file".to_string());
+            return Err(Error::from("Failed to write YAML object to file"));
         };
 
         if ports.iter().any(|e| e == &port) {
@@ -184,13 +191,13 @@ impl Server {
             .arg("-d")
             .current_dir(&path)
             .output() { o.stderr } else {
-                return Err("Failed to run docker-compose command".to_string());
+                return Err(Error::from("Failed to run docker-compose command"));
             };
 
 
         // btw this doesnt work if the container is already running, add a handler for that?
         let str_out = if let Ok(s) = std::str::from_utf8(&output) { s } else {
-            return Err("Failed to parse cmd output".to_string())
+            return Err(Error::from("Failed to parse cmd output"))
         };
         println!("Output from docker compose: \n{str_out}");
 
@@ -198,10 +205,10 @@ impl Server {
             if let Some(b) = a.split(" ").skip(1).next() {
                 b.to_string()
             } else {
-                return Err("Couldn't find container ID".to_string());
+                return Err(Error::from("Couldn't find container ID"));
             }
         } else {
-            return Err("Couldn't find container ID".to_string());
+            return Err(Error::from("Couldn't find container ID"));
         };
         println!("Id: {:?}", id);
 
@@ -214,15 +221,15 @@ impl Server {
         };
 
         if let Err(_) = server.clsave("servers").await {
-            return Err("Failed to save new server object to firebase".to_string());
+            return Err(Error::from("Failed to save new server object to firebase"));
         };
         Ok(server)
     }
 
-    pub async fn send_command(&self, cmd: Vec<String>) -> Result<String, String> {
+    pub async fn send_command(&self, cmd: Vec<String>) -> Result<(), Error> {
         #[cfg(unix)]
         let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
-            return Err("Couldn't connect to docker on default socket".to_string());
+            return Err(Error::from("Couldn't connect to docker on default socket"));
         };
 
         let full_cmd = cmd.iter().fold(vec!["rcon-cli"], |mut acc, x| { acc.push(x.as_str()); acc });
@@ -237,50 +244,58 @@ impl Server {
             },
         )
         .await { e.id } else {
-            return Err("Failed creating exec for docker".to_string())
+            return Err(Error::from("Failed creating exec for docker"))
         };
 
-        if let Ok(_) = docker.start_exec(&exec, None).await {
-            return Ok(String::from("Successfully sent cmd to container"));
-        } else {
-            return Err(String::from("Failed to send cmd to container"));
+        if let Err(_) = docker.start_exec(&exec, None).await {
+            return Err(Error::from("Failed to send cmd to container"));
         }
+        Ok(())
     }
 
-    pub async fn start(&self) -> Result<String, String> {
+    pub async fn start(&self) -> Result<(), Error> {
         #[cfg(unix)]
         let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
-            return Err("Couldn't connect to docker on default socket".to_string());
+            return Err(Error::from("Couldn't connect to docker on default socket"));
         };
         
-        if let Ok(_) = docker.start_container::<String>(&self.id, None).await {
-            return Ok(String::from("Successfully started the container"));
-        } else {
-            return Err(String::from("Failed to start the container"));
+        if let Err(_) = docker.start_container::<String>(&self.id, None).await {
+            return Err(Error::from("Failed to start the container"));
         }
+        Ok(())
     }
 
-    pub async fn stop(&self) -> Result<String, String> {
+    pub async fn stop(&self) -> Result<(), Error> {
         #[cfg(unix)]
         let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
-            return Err("Couldn't connect to docker on default socket".to_string());
+            return Err(Error::from("Couldn't connect to docker on default socket"));
         };
 
         if let Ok(_) = docker.stop_container(&self.id, None).await {
-            return Ok(String::from("Successfully stopped the container"));
+            return Err(Error::from("Failed to stop the container"));
+        }
+        Ok(())
+    }
+
+    pub async fn status(&self) -> Result<Response, Error> {
+        println!("Attempting to get status");
+        let hostname = "localhost";
+        let port = self.port;
+        if let Ok(mut stream) = TcpStream::connect((hostname, port)).await {
+            if let Ok(r) = ping(&mut stream, hostname, port).await {
+                Ok(r)
+            } else {
+                Err(Error::from("Failed to ping the server for status"))
+            }
         } else {
-            return Err(String::from("Failed to stop the container"));
+            Err(Error::from("Failed to open TCP stream"))
         }
     }
 
-    pub fn status(&self) {
-        unimplemented!();
-    }
-
-   pub fn output(&self) -> Result<impl Stream<Item = Result<LogOutput, Error>>, String> {
+   pub fn output(&self) -> Result<impl Stream<Item = Result<LogOutput, bollard::errors::Error>>, Error> {
         #[cfg(unix)]
         let docker = if let Ok(d) = Docker::connect_with_socket_defaults() { d } else {
-            return Err("Couldn't connect to docker on default socket".to_string());
+            return Err(Error::from("Couldn't connect to docker on default socket"));
         };
 
         let options = Some(LogsOptions::<String>{
@@ -293,7 +308,7 @@ impl Server {
         Ok(docker.logs(&self.id, options))
     }
 
-    pub fn clean_output(&self) -> Result<impl Stream<Item = Result<hyper::body::Bytes, bollard::errors::Error>>, String> {
+    pub fn clean_output(&self) -> Result<impl Stream<Item = Result<hyper::body::Bytes, bollard::errors::Error>>, Error> {
         match self.output() {
             Ok(l) => {
                 Ok(l.filter_map(|msg| {

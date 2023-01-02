@@ -17,7 +17,7 @@ serde_yaml = "0.9"
 async-trait = "0.1.60"
 hyper = "0.14.23"
 chrono = "0.4.23"
-craftping = { git = "https://github.com/kiwiyou/craftping" }
+craftping = { git = "https://github.com/kiwiyou/craftping", features = ["async-tokio"] }
 regex = "1.7.0"
 firestore = "0.11"
 dotenv = "0.15"

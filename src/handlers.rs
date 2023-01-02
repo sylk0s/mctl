@@ -1,42 +1,41 @@
 use futures::StreamExt;
 use crate::server::Server;
 use serde::{Serialize, Deserialize};
-use craftping::sync::ping;
-use std::net::TcpStream;
 use warp::{
     http::{StatusCode, Response},
     reply::json,
-    Reply, Rejection};
+    Reply, Rejection, reject};
 use crate::{Servers, Config};
+use crate::error::*;
 
 type Result<T> = std::result::Result<T, Rejection>;
 // Should probably reply with pong
-pub async fn ping_handler() -> Result<impl Reply> {
-    Ok(Response::builder().body("pong".to_string())) 
+pub async fn beep_handler() -> Result<impl Reply> {
+    Ok(Response::builder().body("boop".to_string())) 
 }
 
 pub async fn start_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Started {id}");
     if let Some(s) = servers.write().await.get(&id) {
-        if let Err(e) = s.start().await {
-            return Ok(Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(e))
+        match s.start().await {
+            Ok(_) => Ok(StatusCode::OK),
+            Err(e) => Err(reject::custom(e))
         }
     } else {
-        return Ok(Response::builder().status(StatusCode::NOT_FOUND).body("Server is not registered".to_string()))
+        Err(reject::custom(NotRegistered { id }))
     }
-    Ok(Response::builder().body("Success!".to_string())) 
 }
 
 pub async fn stop_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Stopped {id}");
     if let Some(s) = servers.write().await.get(&id) {
-        if let Err(e) = s.stop().await {
-            return Ok(Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(e))
+        match s.stop().await {
+            Ok(_) => Ok(StatusCode::OK),
+            Err(e) => Err(reject::custom(e))
         }
     } else {
-        return Ok(Response::builder().status(StatusCode::NOT_FOUND).body("Server is not registered".to_string()))
+        Err(reject::custom(NotRegistered { id }))
     }
-    Ok(Response::builder().body("Success!".to_string())) 
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -47,68 +46,67 @@ pub struct Exec {
 pub async fn exec_handler(id: String, body: Exec, servers: Servers) -> Result<impl Reply> {
     println!("Executed {} on {id}", body.args.iter().fold(String::new(), |s, x| format!("{s} {x}")).trim());
     if let Some(s) = servers.write().await.get(&id) {
-        if let Err(e) = s.send_command(body.args).await {
-            return Ok(Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(e))
+        match s.send_command(body.args).await {
+            Ok(_) => Ok(StatusCode::OK),
+            Err(e) => Err(reject::custom(e))
         }
     } else {
-        return Ok(Response::builder().status(StatusCode::NOT_FOUND).body("Server is not registered".to_string()))
+        Err(reject::custom(NotRegistered { id }))
     }
-    Ok(Response::builder().body("Success!".to_string())) 
 }
 
-pub async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
+pub async fn full_output_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Getting output from {id}");
     if let Some(s) = servers.write().await.get(&id) {
-        if let Ok(o) = s.output() {
-            Ok(
-                Response::new(
-                    hyper::Body::wrap_stream(
+        match s.output() {
+            Ok(o) => Ok(Response::new(hyper::Body::wrap_stream(
                         o.map(|item| 
                             match item {
                                 Ok(out) => Ok(out.into_bytes()),
                                 Err(e) => Err(e),
-                            }
-                        )
-                    )
-                )
-            )
-        // NOT a big fan of this method...
-        // Normal thing won't work because it's not the same type
-        } else {
-            Err(warp::reject())
+                            })))),
+            Err(e) => Err(reject::custom(e))
         }
     } else {
-        Err(warp::reject())
+        Err(reject::custom(NotRegistered { id }))
     }
 }
 
-pub async fn clean_output_handler(id: String, servers: Servers) -> Result<impl Reply> {
+pub async fn output_handler(id: String, servers: Servers) -> Result<impl Reply> {
     println!("Getting clean output from {id}");
     if let Some(s) = servers.write().await.get(&id) {
-        if let Ok(o) = s.clean_output() {
-            Ok(
-                Response::new(
-                    hyper::Body::wrap_stream(o)
-                )
-            )
-        // NOT a big fan of this method...
-        // Normal thing won't work because it's not the same type
-        } else {
-            Err(warp::reject())
-        }
+        match s.clean_output() {
+            Ok(o) => Ok(Response::new(hyper::Body::wrap_stream(o))),
+            Err(e) => Err(reject::custom(e))
+        } 
     } else {
-        Err(warp::reject())
+        Err(reject::custom(NotRegistered { id }))
     }
 }
 
 // I'm gonna neglect this one for a second because I wanna redo it later
-pub async fn status_handler(id: String, servers: Servers) -> Result<impl Reply> {
-    println!("Attempting to get status");
-    let hostname = "localhost";
-    let port = servers.write().await.get(&id).unwrap().port.clone();
-    let mut stream = TcpStream::connect((hostname, port)).unwrap();
-    let pong = ping(&mut stream, hostname, port).expect("Cannot ping server");
-    Ok(json(&pong))
+pub async fn get_status(id: String, servers: Servers) -> std::result::Result<craftping::Response, Rejection> {
+    println!("Attempting to get status of {id}");
+    if let Some(s) = servers.write().await.get(&id) {
+        match s.status().await {
+            Ok(r) => Ok(r),
+            Err(e) => Err(reject::custom(e))
+        }
+    } else {
+        Err(reject::custom(NotRegistered {id}))
+    }
+}
+
+pub async fn full_status_handler(servers: Servers) -> Result<impl Reply> {
+    Ok(StatusCode::OK)
+}
+
+// I actually don't know what to do here
+pub async fn partial_status_handler(id: String, servers: Servers) -> Result<impl Reply> {
+    match get_status(id, servers).await {
+        Ok(s) => Ok(json(&s)),
+        Err(e) => Err(e)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -126,9 +124,9 @@ pub async fn new_handler(body: New, servers: Servers, config: Config) -> Result<
     match Server::new(body.id, body.path, body.port, Some(ports), body.version, body.server_type, config).await {
         Ok(s) => {
             servers.write().await.insert(s.name.clone(), s);
-            Ok(Response::builder().body("Success!".to_string())) 
+            Ok(StatusCode::OK) 
         },
-        Err(e) => Ok(Response::builder().status(StatusCode::INTERNAL_SERVER_ERROR).body(e))
+        Err(e) => Err(reject::custom(e)) 
     }
 }
 
