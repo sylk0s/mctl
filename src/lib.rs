@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use server::Server;
+use std::collections::HashMap; 
+use std::sync::Arc; 
+use tokio::sync::RwLock; 
+use server::Server; 
 use cloud::CloudSync;
-use std::fs;
-use serde::Deserialize;
-use std::process::Command;
+use std::fs; 
+use serde::Deserialize; 
+use std::process::Command; 
 
 pub mod server;
 pub mod net;
@@ -17,27 +17,35 @@ pub mod error;
 pub type Servers = Arc<RwLock<HashMap<String, Server>>>;
 
 pub async fn run() {
-    let config = Config::get();
+    // fix this
+    if let Some(config) = Config::get() {
+        let servers = load_from_cloud().await;
 
-    let servers = load_from_cloud().await.unwrap();
+        println!("Servers: {:?}", servers.write().await);
 
-    println!("Servers: {:?}", servers.write().await);
-
-    load_modules(config.clone()).await;
-    net::start_ws(servers, config).await;    
+        load_modules(config.clone()).await;
+        net::start_ws(servers, config).await;  
+    } else {
+        println!("Some error getting the config file from the filepath, please fix this and run mc-docker again :3");
+    }
 }
 
-pub async fn load_from_cloud() -> Option<Servers> {
-    match Server::clget().await {
+/// Returns the list of servers from the cloud, if none are found, creates an empty
+/// list and warns the user
+pub async fn load_from_cloud() -> Servers {
+    Arc::new(RwLock::new(match Server::clget().await {
         Ok(cl_servers) => {
             let mut servers = HashMap::new();
             for server in cl_servers {
                 servers.insert(server.name.clone(), server); 
             }
-            Some(Arc::new(RwLock::new(servers)))
+            servers
         },
-        Err(_) => None,
-    }
+        Err(_) => {
+            println!("Some error occured syncing error from the cloud, starting mc-docker without any loaded servers");
+            HashMap::new()
+        },
+    }))
 }
 
 // change to use the $HOME
@@ -52,9 +60,13 @@ pub struct Config {
 }
 
 impl Config {
-    fn get() -> Config {
-        let conf_file = fs::read_to_string(format!("{CONF_PATH}/config.toml")).expect("Failed to read config from fs");
-        toml::from_str(&conf_file).expect("Error parsing config file from toml")
+    fn get() -> Option<Config> {
+        if let Ok(file) = fs::read_to_string(format!("{CONF_PATH}/config.toml")) {
+            Some(toml::from_str(&file).expect("Error parsing config file from toml"))
+        } else {
+            // touch config file
+            None
+        }
     }
 }
 
