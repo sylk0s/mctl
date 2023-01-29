@@ -271,7 +271,7 @@ impl Server {
             return Err(Error::from("Couldn't connect to docker on default socket"));
         };
 
-        if let Ok(_) = docker.stop_container(&self.id, None).await {
+        if let Err(_) = docker.stop_container(&self.id, None).await {
             return Err(Error::from("Failed to stop the container"));
         }
         Ok(())
@@ -281,6 +281,7 @@ impl Server {
         println!("Attempting to get status");
         let hostname = "localhost";
         let port = self.port;
+        println!("Attempting to connect to {}:{}", hostname, port);
         if let Ok(mut stream) = TcpStream::connect((hostname, port)).await {
             if let Ok(r) = ping(&mut stream, hostname, port).await {
                 Ok(r)

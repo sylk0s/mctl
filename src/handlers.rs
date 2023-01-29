@@ -44,8 +44,7 @@ pub async fn stop_handler(id: String, servers: Servers) -> Result<impl Reply> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Exec {
+#[derive(Serialize, Deserialize, Debug)] pub struct Exec {
     args: Vec<String>,
 }
 
