@@ -1,0 +1,5 @@
+status can't open tcp stream error
+testing firebase
+stop rejection
+proper mcli error messages
+logging

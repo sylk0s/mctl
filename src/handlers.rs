@@ -19,7 +19,10 @@ pub async fn start_handler(id: String, servers: Servers) -> Result<impl Reply> {
     if let Some(s) = servers.write().await.get(&id) {
         match s.start().await {
             Ok(_) => Ok(StatusCode::OK),
-            Err(e) => Err(reject::custom(e))
+            Err(e) => {
+                println!("Rejection on start: {:?}",e);
+                Err(reject::custom(e))
+            }
         }
     } else {
         Err(reject::custom(NotRegistered { id }))
@@ -31,7 +34,10 @@ pub async fn stop_handler(id: String, servers: Servers) -> Result<impl Reply> {
     if let Some(s) = servers.write().await.get(&id) {
         match s.stop().await {
             Ok(_) => Ok(StatusCode::OK),
-            Err(e) => Err(reject::custom(e))
+            Err(e) => {
+                println!("Rejection on stop: {:?}", e);
+                Err(reject::custom(e))
+            }
         }
     } else {
         Err(reject::custom(NotRegistered { id }))
@@ -48,7 +54,10 @@ pub async fn exec_handler(id: String, body: Exec, servers: Servers) -> Result<im
     if let Some(s) = servers.write().await.get(&id) {
         match s.send_command(body.args).await {
             Ok(_) => Ok(StatusCode::OK),
-            Err(e) => Err(reject::custom(e))
+            Err(e) => {
+                println!("Rejection on exec: {:?}", e);
+                Err(reject::custom(e))
+            }
         }
     } else {
         Err(reject::custom(NotRegistered { id }))
@@ -97,7 +106,8 @@ pub async fn get_status(id: String, servers: Servers) -> std::result::Result<cra
     }
 }
 
-pub async fn full_status_handler(servers: Servers) -> Result<impl Reply> {
+pub async fn full_status_handler(_servers: Servers) -> Result<impl Reply> {
+    println!("dont call this pls");
     Ok(StatusCode::OK)
 }
 

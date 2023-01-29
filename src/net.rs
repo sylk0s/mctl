@@ -56,7 +56,7 @@ pub async fn start_ws(servers: Servers, config: Config) {
 
     // Get the status of mc-docker
     // /status{ ,/{name} }
-    let full_route = warp::path("status")
+    let full_route = warp::path("statusaaa")
         .and(warp::path::end())
         .and(with(servers.clone()))
         .and_then(full_status_handler);
