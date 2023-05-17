@@ -12,7 +12,7 @@ use std::fs;
 use std::io::prelude::*;
 use regex::Regex;
 use hyper::body::Bytes;
-use crate::cloud::{CloudSync, Unique};
+use cloudsync::{CloudSync, Unique, CLConfig};
 use crate::{Config, CONF_PATH};
 use craftping::{
     tokio::ping,
@@ -220,7 +220,7 @@ impl Server {
             port,
         };
 
-        if let Err(_) = server.clsave("servers").await {
+        if let Err(_) = server.save().await {
             return Err(Error::from("Failed to save new server object to firebase"));
         };
         Ok(server)
@@ -337,15 +337,20 @@ impl Server {
     }
 }
 
-impl Unique for Server {
+impl Unique<String> for Server {
     fn uuid(&self) -> String {
         self.name.clone()
     }
 }
 
-impl CloudSync for Server {
-    fn clname() -> &'static str {
-        "servers" 
+impl CloudSync<String> for Server {
+    // TODO add this to the config later
+    fn config() -> CLConfig {
+        CLConfig {
+            project_id: "mc-docker".to_string(),
+            cred_path: "./firebase.json".to_string(),
+            collection: "servers".to_string(),
+        }
     }
 }
 

@@ -2,15 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc; 
 use tokio::sync::RwLock; 
 use server::Server; 
-use cloud::CloudSync;
 use std::fs; 
 use serde::Deserialize; 
 use std::process::Command; 
+use cloudsync::CloudSync;
 
 pub mod server;
 pub mod net;
 pub mod status;
-pub mod cloud;
 pub mod handlers;
 pub mod error;
 
@@ -33,7 +32,7 @@ pub async fn run() {
 /// Returns the list of servers from the cloud, if none are found, creates an empty
 /// list and warns the user
 pub async fn load_from_cloud() -> Servers {
-    Arc::new(RwLock::new(match Server::clget().await {
+    Arc::new(RwLock::new(match Server::get().await {
         Ok(cl_servers) => {
             let mut servers = HashMap::new();
             for server in cl_servers {

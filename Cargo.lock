@@ -245,6 +245,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cloudsync"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ca26ea0a6d139a5b7695684039c74d701befff4a3140aca5f68f85e29ac8186"
+dependencies = [
+ "async-trait",
+ "firestore",
+ "gcloud-sdk",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -963,6 +976,7 @@ dependencies = [
  "async-trait",
  "bollard",
  "chrono",
+ "cloudsync",
  "craftping",
  "dotenv",
  "firestore",
